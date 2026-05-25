@@ -55,10 +55,13 @@ jobs:
           if [ -z "$TAG" ]; then echo "::error::No tag provided"; exit 1; fi
           echo "value=$TAG" >> "$GITHUB_OUTPUT"
 
+      - name: Install Playwright deps
+        run: npx playwright install chromium
+
       - name: Run probes
         env:
           GITHUB_TOKEN: ${{ secrets.AIOS_REPO_TOKEN }}
-        run: npx tsx run-local.ts --tag ${{ steps.tag.outputs.value }} --platform ${{ matrix.platform }}
+        run: npx tsx run-local.ts --tag ${{ steps.tag.outputs.value }} --platform ${{ matrix.platform }} --owner everyai-com --repo AIOS_Desktop-releases
 
       - name: Upload report
         if: always()
