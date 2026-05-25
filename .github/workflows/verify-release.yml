@@ -1,0 +1,86 @@
+# Drop this into .github/workflows/verify-release.yml in your verifier repo
+# (e.g. everyai-com/AIOS_Desktop_Verifier).
+#
+# Required secrets:
+#   AIOS_REPO_TOKEN — fine-grained PAT with `Contents: read` + `Issues: write` on AIOS_Desktop
+#
+# Triggers:
+#   - repository_dispatch from AIOS_Desktop on release: published
+#   - manual workflow_dispatch for re-runs
+
+name: Verify Release
+
+on:
+  repository_dispatch:
+    types: [aios-release]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to verify (e.g. v0.2.24)
+        required: true
+        type: string
+
+concurrency:
+  group: verify-${{ github.event.client_payload.tag || inputs.tag }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            platform: darwin
+          - os: windows-latest
+            platform: win32
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          TAG="${{ github.event.client_payload.tag || inputs.tag }}"
+          if [ -z "$TAG" ]; then echo "::error::No tag provided"; exit 1; fi
+          echo "value=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Run probes
+        env:
+          GITHUB_TOKEN: ${{ secrets.AIOS_REPO_TOKEN }}
+        run: npx tsx run-local.ts --tag ${{ steps.tag.outputs.value }} --platform ${{ matrix.platform }}
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-report-${{ matrix.platform }}-${{ steps.tag.outputs.value }}
+          path: |
+            verification-reports/
+            **/failure.png
+
+      - name: Post report to AIOS_Desktop issue
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.AIOS_REPO_TOKEN }}
+        shell: bash
+        run: |
+          REPORT="verification-reports/${{ steps.tag.outputs.value }}-${{ matrix.platform }}.md"
+          if [ -f "$REPORT" ]; then
+            gh issue list --repo everyai-com/AIOS_Desktop --search "Verification: ${{ steps.tag.outputs.value }}" --json number --jq '.[0].number' > issue.txt || true
+            ISSUE=$(cat issue.txt)
+            if [ -z "$ISSUE" ]; then
+              ISSUE=$(gh issue create --repo everyai-com/AIOS_Desktop --title "Verification: ${{ steps.tag.outputs.value }}" --body "Auto-generated verification thread for release ${{ steps.tag.outputs.value }}." --label verification | tail -1 | sed 's|.*/||')
+            fi
+            gh issue comment "$ISSUE" --repo everyai-com/AIOS_Desktop --body-file "$REPORT"
+          fi

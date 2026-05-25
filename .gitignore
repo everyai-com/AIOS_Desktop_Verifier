@@ -1,0 +1,9 @@
+node_modules/
+dist/
+downloads/
+installs/
+verification-reports/
+*.log
+.DS_Store
+trace.zip
+failure.png

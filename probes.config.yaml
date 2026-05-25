@@ -1,0 +1,23 @@
+# VerifierOS probe configuration.
+#
+# Two sections:
+#   smoke    — always-on probes; run on every verification
+#   features — feature-tag → probe-id mapping. When CHANGES.yaml for a release
+#              lists a feature, the matching probes run.
+#
+# Probe IDs must match `id` fields in verifier/probes/*.ts files.
+
+version: 1
+
+smoke:
+  - smoke-launch-chat
+  - sentry-init
+
+features: {}
+  # Examples to fill in as you add probes:
+  # model-selector:
+  #   - model-selector
+  # skip-onboarding:
+  #   - smoke-launch-chat  # the smoke probe already covers Skip
+  # auto-derive-context:
+  #   - auto-derive-context

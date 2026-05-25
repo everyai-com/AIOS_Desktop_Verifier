@@ -1,0 +1,24 @@
+{
+  "name": "verifier-os",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "VerifierOS — post-release verification for AIOS Desktop",
+  "scripts": {
+    "verify": "tsx run-local.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.2",
+    "better-sqlite3": "^11.5.0",
+    "execa": "^9.5.1",
+    "playwright": "^1.49.0",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.0"
+  }
+}
