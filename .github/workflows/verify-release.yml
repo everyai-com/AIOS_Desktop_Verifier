@@ -61,16 +61,31 @@ jobs:
       - name: Run probes
         env:
           GITHUB_TOKEN: ${{ secrets.AIOS_REPO_TOKEN }}
-        run: npx tsx run-local.ts --tag ${{ steps.tag.outputs.value }} --platform ${{ matrix.platform }} --owner everyai-com --repo AIOS_Desktop-releases
+        run: npx tsx run-local.ts --tag ${{ steps.tag.outputs.value }} --platform ${{ matrix.platform }} --owner everyai-com --repo AIOS_Desktop-releases --reports-dir ${{ github.workspace }}/verification-reports
 
-      - name: Upload report
+      - name: Collect probe evidence (traces, screenshots, logs)
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p evidence
+          # Probes write trace.zip / failure.png / *.log to temp logDir;
+          # also pull the verification-reports markdown.
+          cp -R ${{ github.workspace }}/verification-reports evidence/ 2>/dev/null || true
+          find $TMPDIR /tmp /var/folders -path "*verifier-*" -name "trace.zip" 2>/dev/null \
+            -exec sh -c 'cp "$1" evidence/$(basename $(dirname $1))-trace.zip' _ {} \; || true
+          find $TMPDIR /tmp /var/folders -path "*verifier-*" -name "failure.png" 2>/dev/null \
+            -exec sh -c 'cp "$1" evidence/$(basename $(dirname $1))-failure.png' _ {} \; || true
+          find $TMPDIR /tmp /var/folders -path "*verifier-*" -name "*.log" 2>/dev/null \
+            -exec sh -c 'cp "$1" evidence/$(basename $(dirname $(dirname $1)))-$(basename $1)' _ {} \; || true
+          ls -la evidence/ || true
+
+      - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: verification-report-${{ matrix.platform }}-${{ steps.tag.outputs.value }}
-          path: |
-            verification-reports/
-            **/failure.png
+          name: verification-evidence-${{ matrix.platform }}-${{ steps.tag.outputs.value }}
+          path: evidence/
+          if-no-files-found: warn
 
       - name: Post report to AIOS_Desktop issue
         if: always()
@@ -78,7 +93,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.AIOS_REPO_TOKEN }}
         shell: bash
         run: |
-          REPORT="verification-reports/${{ steps.tag.outputs.value }}-${{ matrix.platform }}.md"
+          REPORT="${{ github.workspace }}/verification-reports/${{ steps.tag.outputs.value }}-${{ matrix.platform }}.md"
           if [ -f "$REPORT" ]; then
             gh issue list --repo everyai-com/AIOS_Desktop --search "Verification: ${{ steps.tag.outputs.value }}" --json number --jq '.[0].number' > issue.txt || true
             ISSUE=$(cat issue.txt)
